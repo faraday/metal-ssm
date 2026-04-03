@@ -20,27 +20,26 @@ if '.mm' not in UnixCCompiler.src_extensions:
     UnixCCompiler.src_extensions.append('.mm')
     UnixCCompiler.language_map['.mm'] = 'objc'
 
+# Ensure Ninja is used if available (standard for PyTorch extensions)
+os.environ['USE_NINJA'] = '1'
+
 # Compile flags for Objective-C++ with Metal framework
 extra_compile_args = {
     'cxx': [
         '-std=c++17',
-        '-Wall',
         '-O3',
     ],
 }
 
-# For .mm files, we need ObjC++ flags
-os.environ['CFLAGS'] = os.environ.get('CFLAGS', '') + ' -framework Metal -framework Foundation -ObjC++'
+# Add Metal/MPS specific flags
+os.environ['CFLAGS'] = os.environ.get('CFLAGS', '') + ' -framework Metal -framework Foundation -framework MetalPerformanceShaders -ObjC++'
+os.environ['LDFLAGS'] = os.environ.get('LDFLAGS', '') + ' -framework Metal -framework Foundation -framework MetalPerformanceShaders'
 
 ext_modules = [
     CppExtension(
         name='selective_scan_metal_cpp',
         sources=['selective_scan_metal.mm'],
         extra_compile_args=extra_compile_args,
-        extra_link_args=[
-            '-framework', 'Metal',
-            '-framework', 'Foundation',
-        ],
     ),
 ]
 
