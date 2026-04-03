@@ -81,12 +81,13 @@ static void ensureInitialized(const std::string& shader_path) {
 // ---------------------------------------------------------------------------
 
 std::vector<torch::Tensor> selective_scan_metal_fwd(
-    torch::Tensor deltaA,       // [B, D, L, N] float32 on MPS
-    torch::Tensor deltaB_u,     // [B, D, L, N]
-    torch::Tensor C,            // [B, N, L]
-    torch::Tensor u,            // [B, D, L]
+    torch::Tensor delta,        // [B, L, D]
+    torch::Tensor A,            // [D, N]
+    torch::Tensor B_seq,        // [B, L, N]
+    torch::Tensor C,            // [B, L, N]
+    torch::Tensor u,            // [B, L, D]
     torch::Tensor D_param,      // [D] or empty
-    torch::Tensor z,            // [B, D, L] or empty
+    torch::Tensor z,            // [B, L, D] or empty
     bool return_last_state,
     const std::string& shader_path
 ) {
@@ -94,25 +95,26 @@ std::vector<torch::Tensor> selective_scan_metal_fwd(
         ensureInitialized(shader_path);
         MetalState& state = getState();
 
-        TORCH_CHECK(deltaA.is_mps(), "deltaA must be on MPS device");
-        TORCH_CHECK(deltaA.is_contiguous(), "deltaA must be contiguous");
-        TORCH_CHECK(deltaB_u.is_contiguous(), "deltaB_u must be contiguous");
+        TORCH_CHECK(delta.is_mps(), "delta must be on MPS device");
+        TORCH_CHECK(delta.is_contiguous(), "delta must be contiguous");
+        TORCH_CHECK(A.is_contiguous(), "A must be contiguous");
+        TORCH_CHECK(B_seq.is_contiguous(), "B_seq must be contiguous");
         TORCH_CHECK(C.is_contiguous(), "C must be contiguous");
         TORCH_CHECK(u.is_contiguous(), "u must be contiguous");
 
-        uint32_t B = deltaA.size(0);
-        uint32_t L = deltaA.size(1);
-        uint32_t N = deltaA.size(2);
-        uint32_t D = deltaA.size(3);
+        uint32_t B = delta.size(0);
+        uint32_t L = delta.size(1);
+        uint32_t D = delta.size(2);
+        uint32_t N = A.size(1);
         bool has_D = D_param.numel() > 0;
         bool has_z = z.numel() > 0;
 
         // Allocate outputs on MPS
-        auto out = torch::empty({B, L, D}, deltaA.options().dtype(torch::kFloat32));
+        auto out = torch::empty({B, L, D}, delta.options().dtype(torch::kFloat32));
         auto last_state = return_last_state
-            ? torch::empty({B, D, N}, deltaA.options().dtype(torch::kFloat32))
-            : torch::empty({0}, deltaA.options().dtype(torch::kFloat32));
-        auto dummy = torch::zeros({1}, deltaA.options().dtype(torch::kFloat32));
+            ? torch::empty({B, D, N}, delta.options().dtype(torch::kFloat32))
+            : torch::empty({0}, delta.options().dtype(torch::kFloat32));
+        auto dummy = torch::zeros({1}, delta.options().dtype(torch::kFloat32));
 
         uint32_t has_D_val = has_D ? 1 : 0;
         uint32_t has_z_val = has_z ? 1 : 0;
@@ -126,38 +128,40 @@ std::vector<torch::Tensor> selective_scan_metal_fwd(
         [encoder setComputePipelineState:state.pipeline];
 
         // Bind input buffers
-        [encoder setBuffer:getMTLBufferStorage(deltaA)
-                    offset:deltaA.storage_offset() * sizeof(float) atIndex:0];
-        [encoder setBuffer:getMTLBufferStorage(deltaB_u)
-                    offset:deltaB_u.storage_offset() * sizeof(float) atIndex:1];
+        [encoder setBuffer:getMTLBufferStorage(delta)
+                    offset:delta.storage_offset() * sizeof(float) atIndex:0];
+        [encoder setBuffer:getMTLBufferStorage(A)
+                    offset:A.storage_offset() * sizeof(float) atIndex:1];
+        [encoder setBuffer:getMTLBufferStorage(B_seq)
+                    offset:B_seq.storage_offset() * sizeof(float) atIndex:2];
         [encoder setBuffer:getMTLBufferStorage(C)
-                    offset:C.storage_offset() * sizeof(float) atIndex:2];
+                    offset:C.storage_offset() * sizeof(float) atIndex:3];
         [encoder setBuffer:getMTLBufferStorage(u)
-                    offset:u.storage_offset() * sizeof(float) atIndex:3];
+                    offset:u.storage_offset() * sizeof(float) atIndex:4];
 
         // Optional inputs
         [encoder setBuffer:has_D ? getMTLBufferStorage(D_param) : getMTLBufferStorage(dummy)
                     offset:has_D ? D_param.storage_offset() * sizeof(float) : 0
-                   atIndex:4];
+                   atIndex:5];
         [encoder setBuffer:has_z ? getMTLBufferStorage(z) : getMTLBufferStorage(dummy)
                     offset:has_z ? z.storage_offset() * sizeof(float) : 0
-                   atIndex:5];
+                   atIndex:6];
 
         // Output buffers
         [encoder setBuffer:getMTLBufferStorage(out)
-                    offset:out.storage_offset() * sizeof(float) atIndex:6];
+                    offset:out.storage_offset() * sizeof(float) atIndex:7];
         [encoder setBuffer:return_last_state ? getMTLBufferStorage(last_state) : getMTLBufferStorage(dummy)
                     offset:return_last_state ? last_state.storage_offset() * sizeof(float) : 0
-                   atIndex:7];
+                   atIndex:8];
 
         // Scalar constants via setBytes
-        [encoder setBytes:&B length:sizeof(uint32_t) atIndex:8];
-        [encoder setBytes:&D length:sizeof(uint32_t) atIndex:9];
-        [encoder setBytes:&L length:sizeof(uint32_t) atIndex:10];
-        [encoder setBytes:&N length:sizeof(uint32_t) atIndex:11];
-        [encoder setBytes:&has_D_val length:sizeof(uint32_t) atIndex:12];
-        [encoder setBytes:&has_z_val length:sizeof(uint32_t) atIndex:13];
-        [encoder setBytes:&save_last length:sizeof(uint32_t) atIndex:14];
+        [encoder setBytes:&B length:sizeof(uint32_t) atIndex:9];
+        [encoder setBytes:&D length:sizeof(uint32_t) atIndex:10];
+        [encoder setBytes:&L length:sizeof(uint32_t) atIndex:11];
+        [encoder setBytes:&N length:sizeof(uint32_t) atIndex:12];
+        [encoder setBytes:&has_D_val length:sizeof(uint32_t) atIndex:13];
+        [encoder setBytes:&has_z_val length:sizeof(uint32_t) atIndex:14];
+        [encoder setBytes:&save_last length:sizeof(uint32_t) atIndex:15];
 
         // Dispatch: one thread per (batch, dim) pair
         uint32_t total_threads = B * D;
@@ -185,8 +189,9 @@ std::vector<torch::Tensor> selective_scan_metal_fwd(
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("selective_scan_metal_fwd", &selective_scan_metal_fwd,
           "Fused selective scan forward pass on Metal GPU",
-          py::arg("deltaA"),
-          py::arg("deltaB_u"),
+          py::arg("delta"),
+          py::arg("A"),
+          py::arg("B_seq"),
           py::arg("C"),
           py::arg("u"),
           py::arg("D_param"),

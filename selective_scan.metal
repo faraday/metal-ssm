@@ -38,21 +38,22 @@ inline float silu(float x) {
 }
 
 kernel void selective_scan_fwd(
-    device const float* deltaA      [[buffer(0)]],   // [B, L, N, D]
-    device const float* deltaB_u    [[buffer(1)]],   // [B, L, N, D]
-    device const float* C           [[buffer(2)]],   // [B, L, N]
-    device const float* u           [[buffer(3)]],   // [B, L, D]
-    device const float* D_param     [[buffer(4)]],   // [D]
-    device const float* z           [[buffer(5)]],   // [B, L, D]
-    device float* out               [[buffer(6)]],   // [B, L, D]
-    device float* last_state        [[buffer(7)]],   // [B, D, N]
-    constant uint& B_size           [[buffer(8)]],
-    constant uint& D_size           [[buffer(9)]],
-    constant uint& L_size           [[buffer(10)]],
-    constant uint& N_size           [[buffer(11)]],
-    constant uint& has_D            [[buffer(12)]],
-    constant uint& has_z            [[buffer(13)]],
-    constant uint& save_last_state  [[buffer(14)]],
+    device const float* delta       [[buffer(0)]],   // [B, L, D]
+    device const float* A           [[buffer(1)]],   // [D, N]
+    device const float* B_seq       [[buffer(2)]],   // [B, L, N]
+    device const float* C           [[buffer(3)]],   // [B, L, N]
+    device const float* u           [[buffer(4)]],   // [B, L, D]
+    device const float* D_param     [[buffer(5)]],   // [D]
+    device const float* z           [[buffer(6)]],   // [B, L, D]
+    device float* out               [[buffer(7)]],   // [B, L, D]
+    device float* last_state        [[buffer(8)]],   // [B, D, N]
+    constant uint& B_size           [[buffer(9)]],
+    constant uint& D_size           [[buffer(10)]],
+    constant uint& L_size           [[buffer(11)]],
+    constant uint& N_size           [[buffer(12)]],
+    constant uint& has_D            [[buffer(13)]],
+    constant uint& has_z            [[buffer(14)]],
+    constant uint& save_last_state  [[buffer(15)]],
     uint tid                        [[thread_position_in_grid]])
 {
     uint total_bd = B_size * D_size;
@@ -69,8 +70,6 @@ kernel void selective_scan_fwd(
     }
 
     // Base pointer offsets for the current batch 'b'
-    // For [B, L, N, D]:
-    uint base_blnd = b * (L_size * N_size * D_size);
     // For [B, L, N]:
     uint base_bln = b * (L_size * N_size);
     // For [B, L, D]:
@@ -78,28 +77,35 @@ kernel void selective_scan_fwd(
 
     for (uint i = 0; i < L_size; i++) {
         // Offset for current step i
-        uint offset_blnd_i = base_blnd + i * (N_size * D_size) + d;
+        uint offset_bld_i = base_bld + i * D_size + d;
+        uint offset_bln_i = base_bln + i * N_size;
+        
+        float d_val = delta[offset_bld_i];
+        float u_val = u[offset_bld_i];
 
-        // State update: x[n] = deltaA * x[n] + deltaB_u
+        // State update: x[n] = exp(delta * A) * x[n] + delta * B_seq * u
         for (uint n = 0; n < N_size; n++) {
-            uint idx = offset_blnd_i + n * D_size;
-            float dA = deltaA[idx];
-            float dBu = deltaB_u[idx];
+            float a_val = A[d * N_size + n];
+            float b_val = B_seq[offset_bln_i + n];
+            
+            // Metal fast::exp or exp2 is significantly faster than standard exp
+            // log2(e) ≈ 1.4426950408889634
+            float dA = fast::exp(d_val * a_val);
+            float dBu = d_val * b_val * u_val;
+            
             x[n] = dA * x[n] + dBu;
         }
 
         // Readout y = sum_n(x[n] * C[b, l, n])
         float y = 0.0f;
-        uint offset_bln_i = base_bln + i * N_size;
         for (uint n = 0; n < N_size; n++) {
             float c_val = C[offset_bln_i + n];
             y += x[n] * c_val;
         }
 
         // Apply D skip connection
-        uint offset_bld_i = base_bld + i * D_size + d;
         if (has_D) {
-            y += u[offset_bld_i] * D_param[d];
+            y += u_val * D_param[d];
         }
 
         // Apply z gating

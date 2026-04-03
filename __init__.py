@@ -34,17 +34,12 @@ def metal_selective_scan_fn(
 
     # Convert to format optimized for coalesced Metal memory access
     # u and delta start as [B, D, L]. We transpose to [B, L, D]
-    delta_t = delta.transpose(1, 2)  # [B, L, D]
+    delta_t = delta.transpose(1, 2).contiguous()  # [B, L, D]
     u_t = u.transpose(1, 2).contiguous() # [B, L, D]
     
-    A_f = A.float()
-    B_t = B.float().transpose(1, 2) # [B, L, N]
+    A_f = A.float().contiguous() # [D, N]
+    B_t = B.float().transpose(1, 2).contiguous() # [B, L, N]
     C_t = C.float().transpose(1, 2).contiguous() # [B, L, N]
-
-    # Calculate deltaA and deltaB_u directly in coalesced [B, L, N, D] format!
-    # A is [D, N]
-    deltaA = torch.exp(torch.einsum("bld,dn->blnd", delta_t, A_f)).contiguous()
-    deltaB_u = torch.einsum("bld,bln,bld->blnd", delta_t, B_t, u_t).contiguous()
 
     # Optional arrays — if provided, must be in [B, L, D] or [D] format
     D_tensor = D.float().contiguous() if D is not None else torch.empty(0, device=u.device)
@@ -52,8 +47,9 @@ def metal_selective_scan_fn(
 
     # Calling the C++ extension. Output will be [B, L, D]
     results = selective_scan_metal_cpp.selective_scan_metal_fwd(
-        deltaA,
-        deltaB_u,
+        delta_t,
+        A_f,
+        B_t,
         C_t,
         u_t,
         D_tensor,
