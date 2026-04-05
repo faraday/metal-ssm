@@ -38,7 +38,7 @@ os.environ['LDFLAGS'] = os.environ.get('LDFLAGS', '') + ' -framework Metal -fram
 ext_modules = [
     CppExtension(
         name='selective_scan_metal_cpp',
-        sources=['selective_scan_metal.mm'],
+        sources=['src/metal_ssm/selective_scan_metal.mm'],
         extra_compile_args=extra_compile_args,
     ),
 ]
@@ -47,7 +47,8 @@ setup(
     name='metal_ssm',
     version='0.1.0',
     description='Fused Metal kernel for Mamba selective scan on Apple Silicon',
-    packages=find_packages(),
+    packages=find_packages(where='src'),
+    package_dir={'': 'src'},
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExtension},
     python_requires='>=3.10',
