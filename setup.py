@@ -28,7 +28,7 @@ os.environ['USE_NINJA'] = '1'
 # Compile flags for Objective-C++ with Metal framework
 extra_compile_args = {
     'cxx': [
-        '-std=c++17',
+        '-std=c++20',
         '-O3',
     ],
 }
@@ -49,7 +49,6 @@ setup(
     name='metal_ssm',
     version='0.1.0',
     description='Fused Metal kernel for Mamba selective scan on Apple Silicon',
-    license='Apache-2.0',
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
     ext_modules=ext_modules,

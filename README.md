@@ -9,9 +9,9 @@ This is an experimental reference implementation with a restricted tensor contra
 - Apple Silicon Mac with a working PyTorch MPS backend
 - Python 3.10 or newer
 - PyTorch 2.0 or newer with MPS support
-- Xcode Command Line Tools (Clang and the macOS Metal SDK) to build the native extension
+- Xcode Command Line Tools with a C++20-capable Clang and the macOS Metal SDK
 
-The extension is built locally during installation. From the repository root:
+Install PyTorch and the build tools in the environment you intend to use. Then build the extension without pip's isolated build environment, so it uses the same PyTorch headers as the runtime:
 
 ```bash
 git clone https://github.com/faraday/metal_ssm.git
@@ -19,7 +19,8 @@ cd metal_ssm
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e .
+python -m pip install torch setuptools wheel ninja
+python -m pip install --no-build-isolation -e .
 ```
 
 ## Example
