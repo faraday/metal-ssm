@@ -14,8 +14,8 @@ This is an experimental reference implementation with a restricted tensor contra
 Install PyTorch and the build tools in the environment you intend to use. Then build the extension without pip's isolated build environment, so it uses the same PyTorch headers as the runtime:
 
 ```bash
-git clone https://github.com/faraday/metal_ssm.git
-cd metal_ssm
+git clone https://github.com/faraday/metal-ssm.git
+cd metal-ssm
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip

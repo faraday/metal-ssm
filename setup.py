@@ -2,8 +2,7 @@
 Build script for the Metal selective scan PyTorch extension.
 
 Usage:
-    cd scripts/metal_ssm
-    pip install -e .
+    python -m pip install --no-build-isolation -e .
 """
 # SPDX-License-Identifier: Apache-2.0
 
@@ -46,7 +45,7 @@ ext_modules = [
 ]
 
 setup(
-    name='metal_ssm',
+    name='metal-ssm',
     version='0.1.0',
     description='Fused Metal kernel for Mamba selective scan on Apple Silicon',
     packages=find_packages(where='src'),
