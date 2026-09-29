@@ -3,6 +3,8 @@ Metal-accelerated selective scan for Mamba SSM on Apple Silicon.
 
 Drop-in replacement for selective_scan_fn / selective_scan_ref from mamba-ssm.
 """
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import torch
 import torch.nn.functional as F

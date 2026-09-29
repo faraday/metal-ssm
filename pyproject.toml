@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "wheel", "torch>=2.0.0", "ninja"]
+requires = ["setuptools>=77", "wheel", "torch>=2.0.0", "ninja"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,6 +9,8 @@ description = "Fused Metal kernel for Mamba selective scan on Apple Silicon"
 authors = [
     {name = "Çağatay Çallı", email = "cagataycalli@gmail.com"}
 ]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

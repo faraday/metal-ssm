@@ -5,6 +5,8 @@ Usage:
     cd scripts/metal_ssm
     pip install -e .
 """
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import torch
 from setuptools import setup, find_packages
@@ -47,6 +49,7 @@ setup(
     name='metal_ssm',
     version='0.1.0',
     description='Fused Metal kernel for Mamba selective scan on Apple Silicon',
+    license='Apache-2.0',
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
     ext_modules=ext_modules,

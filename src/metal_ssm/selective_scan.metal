@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 /******************************************************************************
  * Fused Mamba Selective Scan — Metal Compute Kernel
  *
@@ -21,7 +23,6 @@
  * adjacent threads read memory addresses separated by 1 float (4 bytes).
  * This results in PERFECT memory coalescing.
  *
- * Copyright 2026. MIT License.
  ******************************************************************************/
 
 #include <metal_stdlib>
